@@ -14,8 +14,10 @@ export default function RootLayout() {
       <Stack screenOptions={{
         headerShown: false
       }}>
-        <Stack.Screen name='(tabs)/index' options={{ headerShadowVisible: false}} />
-        <Stack.Screen name='/[id]' options={{ headerShadowVisible: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShadowVisible: false }} />
+        <Stack.Screen name="[id]" options={{ headerShadowVisible: false }} />
+        <Stack.Screen name='seat-mapping-screen'  />
+        <Stack.Screen name='checkout-screen'  />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

@@ -1,10 +1,12 @@
+import { Ionicons } from "@expo/vector-icons";
 import { MovieDetail, MovieVideo } from "@/models/movie";
 import { fetchMovieDetails, fetchMovieVideos, getImageUrl } from "@/services/movie-service";
-import { useLocalSearchParams } from "expo-router"
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Image,
+    Linking,
     Modal,
     ScrollView,
     StatusBar,
@@ -15,16 +17,20 @@ import {
     View,
 } from "react-native";
 import YoutubePlayer from "react-native-youtube-iframe";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+const GENRE_COLORS = ["#15D2BC", "#E26CA5", "#564CA3", "#E8B84B", "#6C5CE7", "#00B894"];
 
 const MovieDetailScreen = () => {
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const { id } = useLocalSearchParams();
+
+    const router = useRouter();
     const [movie, setMovie] = useState<MovieDetail | null>(null);
     const [trailer, setTrailer] = useState<MovieVideo | null>(null);
     const [loading, setLoading] = useState(true);
     const [showTrailer, setShowTrailer] = useState(false);
     const [playing, setPlaying] = useState(false);
-    const [playerReady, setPlayerReady] = useState(false);
     const [playerError, setPlayerError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -57,31 +63,28 @@ const MovieDetailScreen = () => {
 
     const openTrailer = () => {
         setPlayerError(null);
-        setPlayerReady(false);
-        setPlaying(true); 
+        setPlaying(true);
         setShowTrailer(true);
     };
 
     const closeTrailer = () => {
         setPlaying(false);
-        setPlayerReady(false);
         setShowTrailer(false);
     };
 
     const onStateChange = useCallback((state: string) => {
-        if (state === "ended") {
-            closeTrailer();
-        }
-    }, []);
-
-    const onPlayerReady = useCallback(() => {
-        setPlayerReady(true);
+        if (state === "ended") closeTrailer();
     }, []);
 
     const onPlayerError = useCallback((error: string) => {
         setPlayerError(error);
         setPlaying(false);
     }, []);
+
+    const openTicketLink = () => {
+
+        router.navigate({ pathname: '/seat-mapping-screen', params: { title: movie?.title, releaseDate: movie?.release_date,  } })
+    };
 
     if (loading) {
         return (
@@ -100,16 +103,17 @@ const MovieDetailScreen = () => {
     }
 
     const backdropUri = getImageUrl(movie.backdrop_path, "original");
-    const posterUri = getImageUrl(movie.poster_path);
-    const year = movie.release_date?.split("-")[0];
-    const hours = Math.floor(movie.runtime / 60);
-    const minutes = movie.runtime % 60;
-    const runtimeText = `${hours}h ${minutes}m`;
-    const rating = movie.vote_average?.toFixed(1);
+    const releaseDate = movie.release_date
+        ? new Date(movie.release_date).toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+        })
+        : null;
 
     return (
         <>
-            <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.container} showsVerticalScrollIndicator={false} bounces={false}>
                 <View style={styles.backdropContainer}>
                     {backdropUri ? (
                         <Image source={{ uri: backdropUri }} style={styles.backdrop} resizeMode="cover" />
@@ -118,49 +122,72 @@ const MovieDetailScreen = () => {
                     )}
                     <View style={styles.backdropOverlay} />
 
-                    {trailer ? (
-                        <TouchableOpacity
-                            style={styles.playButton}
-                            onPress={openTrailer}
-                            activeOpacity={0.8}
-                        >
-                            <View style={styles.playIcon}>
-                                <Text style={styles.playTriangle}>▶</Text>
-                            </View>
-                            <Text style={styles.playLabel}>Watch Trailer</Text>
-                        </TouchableOpacity>
-                    ) : null}
+                    <SafeAreaView style={styles.heroContent} edges={["top"]}>
+
+                        <View style={styles.header}>
+                            <TouchableOpacity onPress={() => router.back()} hitSlop={12}>
+                                <Ionicons name="chevron-back" size={26} color="#fff" />
+                            </TouchableOpacity>
+                            <Text style={styles.headerTitle}>Watch</Text>
+                            <View style={{ width: 26 }} />
+                        </View>
+                        <View style={styles.heroBottom}>
+                            <Text style={styles.title} numberOfLines={2}>
+                                {movie.title}
+                            </Text>
+                            {releaseDate ? (
+                                <Text style={styles.releaseText}>In Theaters {releaseDate}</Text>
+                            ) : null}
+
+
+                            <TouchableOpacity
+                                style={styles.ticketButton}
+                                onPress={openTicketLink}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={styles.ticketButtonText}>Get Tickets</Text>
+                            </TouchableOpacity>
+
+
+                            {trailer ? (
+                                <TouchableOpacity
+                                    style={styles.trailerButton}
+                                    onPress={openTrailer}
+                                    activeOpacity={0.85}
+                                >
+                                    <Ionicons name="play" size={16} color="#fff" style={{ marginRight: 8 }} />
+                                    <Text style={styles.trailerButtonText}>Watch Trailer</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                    </SafeAreaView>
                 </View>
-                <View style={styles.infoSection}>
-                    <View style={styles.headerRow}>
-                        {posterUri ? (
-                            <Image source={{ uri: posterUri }} style={styles.poster} resizeMode="cover" />
-                        ) : null}
-                        <View style={styles.headerText}>
-                            <Text style={styles.title}>{movie.title}</Text>
-                            {movie.tagline ? <Text style={styles.tagline}>"{movie.tagline}"</Text> : null}
-                            <View style={styles.metaRow}>
-                                <Text style={styles.metaText}>{year}</Text>
-                                <Text style={styles.metaDot}>•</Text>
-                                <Text style={styles.metaText}>{runtimeText}</Text>
-                                <Text style={styles.metaDot}>•</Text>
-                                <Text style={styles.ratingText}>⭐ {rating}</Text>
-                            </View>
-                        </View>
-                    </View>
 
+                <View style={styles.detailsCard}>
                     {movie.genres?.length > 0 ? (
-                        <View style={styles.genreRow}>
-                            {movie.genres.map((genre) => (
-                                <View key={genre.id} style={styles.genreChip}>
-                                    <Text style={styles.genreText}>{genre.name}</Text>
-                                </View>
-                            ))}
-                        </View>
+                        <>
+                            <Text style={styles.sectionTitle}>Genres</Text>
+                            <View style={styles.genreRow}>
+                                {movie.genres.map((genre, index) => (
+                                    <View
+                                        key={genre.id}
+                                        style={[
+                                            styles.genreChip,
+                                            { backgroundColor: GENRE_COLORS[index % GENRE_COLORS.length] },
+                                        ]}
+                                    >
+                                        <Text style={styles.genreText}>{genre.name}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                            <View style={styles.divider} />
+                        </>
                     ) : null}
+                    <SafeAreaView>
+                        <Text style={styles.sectionTitle}>Overview</Text>
+                        <Text style={styles.overview}>{movie.overview.toLocaleUpperCase()}</Text>
+                    </SafeAreaView>
 
-                    <Text style={styles.sectionTitle}>Overview</Text>
-                    <Text style={styles.overview}>{movie.overview}</Text>
                 </View>
             </ScrollView>
             <Modal
@@ -176,7 +203,7 @@ const MovieDetailScreen = () => {
                         onPress={closeTrailer}
                         activeOpacity={0.7}
                     >
-                        <Text numberOfLines={1} style={styles.closeText}>Done</Text>
+                        <Text style={styles.closeText}>Done</Text>
                     </TouchableOpacity>
 
                     {playerError ? (
@@ -193,7 +220,6 @@ const MovieDetailScreen = () => {
                                 width={screenWidth}
                                 videoId={trailer.key}
                                 play={playing}
-                                onReady={onPlayerReady}
                                 onChangeState={onStateChange}
                                 onError={onPlayerError}
                                 initialPlayerParams={{
@@ -231,12 +257,12 @@ const styles = StyleSheet.create({
         color: "#999",
         fontSize: 16,
     },
+
+
     backdropContainer: {
         width: "100%",
-        height: 220,
+        height: 450,
         position: "relative",
-        justifyContent: "center",
-        alignItems: "center",
     },
     backdrop: {
         width: "100%",
@@ -247,106 +273,120 @@ const styles = StyleSheet.create({
     },
     backdropOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: "rgba(0,0,0,0.35)",
+        backgroundColor: "rgba(0,0,0,0.1)",
     },
-    playButton: {
-        position: "absolute",
+    heroContent: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: "space-between",
+    },
+    header: {
+        flexDirection: "row",
         alignItems: "center",
-        gap: 8,
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        paddingTop: 8,
     },
-    playIcon: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: "rgba(255,255,255,0.9)",
+    headerTitle: {
+        color: "#fff",
+        fontSize: 17,
+        fontWeight: "600",
+    },
+    heroBottom: {
+        paddingHorizontal: 24,
+        paddingBottom: 40,
+        alignItems: "center",
+    },
+    title: {
+        color: "#D9B45C",
+        fontSize: 30,
+        fontWeight: "700",
+        textAlign: "center",
+        marginBottom: 12,
+    },
+    releaseText: {
+        color: "#FFFFFF",
+        fontSize: 16,
+        fontWeight: "500",
+        fontFamily: 'Poppins',
+        marginBottom: 20,
+    },
+    ticketButton: {
+        width: 243,
+        height: 50,
+        backgroundColor: "#61C3F2",
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: "center",
+        marginBottom: 12,
+    },
+    ticketButtonText: {
+        color: "#FFFFFF",
+        fontSize: 14,
+        fontWeight: "600",
+        fontFamily: 'Poppins',
+        lineHeight: 20,
+        letterSpacing: 0.2
+    },
+    trailerButton: {
+        width: 243,
+        height: 50,
+        flexDirection: "row",
+        alignItems: "center",
         justifyContent: "center",
-        alignItems: "center",
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "#61C3F2",
     },
-    playTriangle: {
-        fontSize: 22,
-        color: "#000",
-        marginLeft: 4,
-    },
-    playLabel: {
+    trailerButtonText: {
         color: "#fff",
         fontSize: 14,
         fontWeight: "600",
+        fontFamily: 'Poppins',
+        lineHeight: 20,
+        letterSpacing: 0.2
     },
-    infoSection: {
-        padding: 16,
+    detailsCard: {
+        backgroundColor: "#fff",
+        paddingHorizontal: 20,
+        paddingTop: 28,
+
     },
-    headerRow: {
-        flexDirection: "row",
-        gap: 14,
-    },
-    poster: {
-        width: 110,
-        height: 165,
-        borderRadius: 12,
-        marginTop: -50,
-    },
-    headerText: {
-        flex: 1,
-        paddingTop: 4,
-    },
-    title: {
-        fontSize: 22,
-        fontWeight: "700",
-        color: "#1c1c1e",
-    },
-    tagline: {
-        fontSize: 13,
-        fontStyle: "italic",
-        color: "#8e8e93",
-        marginTop: 4,
-    },
-    metaRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginTop: 8,
-        gap: 6,
-    },
-    metaText: {
-        fontSize: 13,
-        color: "#636366",
-    },
-    metaDot: {
-        fontSize: 13,
-        color: "#c7c7cc",
-    },
-    ratingText: {
-        fontSize: 13,
-        color: "#ff9500",
-        fontWeight: "600",
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: "500",
+        color: "#202C43",
+        marginBottom: 14,
     },
     genreRow: {
         flexDirection: "row",
         flexWrap: "wrap",
-        gap: 8,
-        marginTop: 16,
+        gap: 10,
     },
     genreChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingHorizontal: 16,
+        paddingVertical: 4,
         borderRadius: 16,
-        backgroundColor: "#f2f2f7",
     },
     genreText: {
         fontSize: 12,
-        color: "#636366",
-        fontWeight: "500",
+        color: "#FFFFFF",
+        fontWeight: "600",
+        lineHeight: 20,
+        letterSpacing: 0,
+        fontFamily: "Poppins"
     },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#1c1c1e",
-        marginTop: 20,
-        marginBottom: 8,
+    divider: {
+        height: 1,
+        backgroundColor: "#ececec",
+        marginTop: 22,
     },
     overview: {
-        fontSize: 15,
-        lineHeight: 22,
-        color: "#3a3a3c",
+        fontSize: 16,
+        fontWeight: '400',
+        fontFamily: 'Poppins',
+        color: "#8F8F8F",
+        lineHeight: 25,
+        marginBottom: 16
     },
     modalContainer: {
         flex: 1,
@@ -358,7 +398,7 @@ const styles = StyleSheet.create({
         top: 50,
         right: 16,
         zIndex: 10,
-        width: 36,
+        paddingHorizontal: 14,
         height: 36,
         borderRadius: 18,
         backgroundColor: "rgba(0,0,0,0.6)",
@@ -366,11 +406,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     closeText: {
-        minWidth: 42,
         color: "#fff",
-        fontSize: 18,
+        fontSize: 15,
         fontWeight: "700",
-        
     },
     playerWrapper: {
         width: "100%",

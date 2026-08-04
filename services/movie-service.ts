@@ -1,4 +1,4 @@
-import { BASE_URL } from "@/constants/url";
+import { API_ROOT, BASE_URL } from "@/constants/url";
 import { MovieDetail, MovieList, MovieVideo } from "@/models/movie";
 
 const API_KEY = process.env.EXPO_PUBLIC_MOVIE_DB_API_KEY;
@@ -47,3 +47,17 @@ export const fetchMovieVideos = async (id: number): Promise<MovieVideo[]> => {
         return [];
     }
 }
+
+export const searchMovies = async (query: string, page: number = 1): Promise<MovieList> => {
+    try {
+        const response = await fetch(
+            `${API_ROOT}/search/movie?query=${encodeURIComponent(query)}&page=${page}`,
+            { headers: headers }
+        );
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        throw error
+    }
+
+};

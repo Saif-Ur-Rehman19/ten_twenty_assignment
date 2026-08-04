@@ -1,6 +1,6 @@
 import { MovieList } from "@/models/movie";
-import { fetchMovies } from "@/services/movie-service";
-import { useEffect, useState } from "react";
+import { fetchMovies, searchMovies } from "@/services/movie-service";
+import { useEffect, useRef, useState } from "react";
 
 export const useFetchMovies = () => {
     const [movies, setMovies] = useState<MovieList>({ results: [] });
@@ -8,8 +8,11 @@ export const useFetchMovies = () => {
     const [loadingMore, setLoadingMore] = useState<boolean>(false);
     const [page, setPage] = useState<number>(1);
     const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState<string>("");
 
-    const loadMovies = async (pageNumber: number = 1) => {
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const loadMovies = async (pageNumber: number = 1, query: string = "") => {
         try {
             if (pageNumber === 1) {
                 setLoading(true);
@@ -17,7 +20,11 @@ export const useFetchMovies = () => {
                 setLoadingMore(true);
             }
             setError(null);
-            const response = await fetchMovies(pageNumber);
+
+            const response = query.trim()
+                ? await searchMovies(query.trim(), pageNumber)
+                : await fetchMovies(pageNumber);
+
             if (response && response.results) {
                 setMovies((prev) => ({
                     ...response,
@@ -35,13 +42,40 @@ export const useFetchMovies = () => {
 
     const loadMore = () => {
         if (!loading && !loadingMore) {
-            loadMovies(page + 1);
+            loadMovies(page + 1, searchQuery);
         }
+    };
+
+    const search = (text: string) => {
+        setSearchQuery(text);
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            loadMovies(1, text);
+        }, 1000);
+    };
+
+    const clearSearch = () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        setSearchQuery("");
+        loadMovies(1, "");
     };
 
     useEffect(() => {
         loadMovies(1);
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+        };
     }, []);
 
-    return { movies, loading, loadingMore, error, refetch: () => loadMovies(1), loadMore };
+    return {
+        movies,
+        loading,
+        loadingMore,
+        error,
+        refetch: () => loadMovies(1, searchQuery),
+        loadMore,
+        searchQuery,
+        search,
+        clearSearch,
+    };
 };
